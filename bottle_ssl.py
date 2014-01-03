@@ -10,8 +10,9 @@
 # (see http://www.piware.de/2011/01/creating-an-https-server-in-python/#comment-11380)
 from bottle import Bottle, get, run, ServerAdapter
 
+# copied from bottle. Only changes are to import ssl and wrap the socket
 class SSLWSGIRefServer(ServerAdapter):
-    def run(self, handler): # pragma: no cover
+    def run(self, handler):
         from wsgiref.simple_server import make_server, WSGIRequestHandler
         import ssl
         if self.quiet:
@@ -19,7 +20,10 @@ class SSLWSGIRefServer(ServerAdapter):
                 def log_request(*args, **kw): pass
             self.options['handler_class'] = QuietHandler
         srv = make_server(self.host, self.port, handler, **self.options)
-        srv.socket = ssl.wrap_socket (srv.socket, certfile='server.pem', server_side=True)
+        srv.socket = ssl.wrap_socket (
+        	srv.socket,
+        	certfile='server.pem',  # path to certificate
+        	server_side=True)
         srv.serve_forever()
 
 @get("/x")
