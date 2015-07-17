@@ -3,7 +3,7 @@
 import numpy as np
 import time
 import sys
-
+no_weave = '--no-weave' in sys.argv
 
 def to_rgb1(im):
     # I think this will be slow
@@ -56,29 +56,33 @@ def to_rgb3b(im):
     # data
     return np.dstack([im.astype(np.uint8)] * 3).copy(order='C')
 
-
-def to_rgb4(im):
-    # we use weave to do the assignment in C code
-    # this only gets compiled on the first call
-    import scipy.weave as weave
-    w, h = im.shape
-    ret = np.empty((w, h, 3), dtype=np.uint8)
-    code = """
-    int impos=0;
-    int retpos=0;
-    for(int j=0; j<Nim[1]; j++)
-    {
-        for (int i=0; i<Nim[0]; i++)
+if not no_weave:
+    def to_rgb4(im):
+        # we use weave to do the assignment in C code
+        # this only gets compiled on the first call
+        import scipy.weave as weave
+        w, h = im.shape
+        ret = np.empty((w, h, 3), dtype=np.uint8)
+        code = """
+        int impos=0;
+        int retpos=0;
+        for(int j=0; j<Nim[1]; j++)
         {
-            unsigned char d=im[impos++];
-            ret[retpos++] = d;
-            ret[retpos++] = d;
-            ret[retpos++] = d;
+            for (int i=0; i<Nim[0]; i++)
+            {
+                unsigned char d=im[impos++];
+                ret[retpos++] = d;
+                ret[retpos++] = d;
+                ret[retpos++] = d;
+            }
         }
-    }
-    """
-    weave.inline(code, ["im", "ret"])
-    return ret
+        """
+        weave.inline(code, ["im", "ret"])
+        return ret
+
+def to_rgb5(im):
+    im.resize((im.shape[0], im.shape[1], 1))
+    return np.repeat(im.astype(np.uint8), 3, 2)
 
 """identical to 4, removing
 def to_rgb5(im):
@@ -90,16 +94,20 @@ def to_rgb6(im):
     return np.dstack((im.astype(np.uint8),) * 3)
 """
 
-funcs = dict(((x,eval(x)) for x in list(globals()) if "to_rgb" in x))
+funcs = {x:eval(x) for x in globals() if "to_rgb" in x}
 print "testing Numpy v",np.version.version
 print "on Python ", sys.version
 for size in [64,256,1024,2048]:
     s = np.random.uniform(256, size=(size,size))
-    op = [funcs[f](s) for f in funcs]
-    assert(all(map(lambda x: np.array_equal(x, op[0]), op)))
-    times=min(3*10**7/size**2, 10**5) or 1
+    # confirm all functions produce the same output:
+    ref = to_rgb1(s)
+    times = min(3*10**7/size**2, 10**5) or 1
     print "\n\nFor Size",size,"\n==============="
     for name, func in sorted(funcs.items()):
+        out = func(s)
+        assert np.array_equal(ref, out)
+        if ref.data != out.data:
+            print "Array data not in order"
         start = time.time()
         for i in range(times):
             func(s)

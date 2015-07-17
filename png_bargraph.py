@@ -64,6 +64,11 @@ def test():
         for d in make_bar_png(dat):
             f.write(d)  
 
+    with open('../sine.png', 'w') as f:
+        dat = [int(512*(1+math.sin(x/32.0))) for x in xrange(1024)]
+        for d in make_bar_png(dat, 1024):
+            f.write(d)  
+
 if __name__ == "__main__":
     test()               
                 
